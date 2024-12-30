@@ -1,0 +1,149 @@
+import streamlit as st
+import pickle
+import numpy as np
+import re
+from wordcloud import WordCloud
+import matplotlib.pyplot as plt
+from collections import Counter
+from sklearn.feature_extraction.text import TfidfVectorizer
+import pandas as pd
+from io import BytesIO
+from sklearn.decomposition import LatentDirichletAllocation
+from gtts import gTTS
+import os
+import requests
+
+# Helper function to clean text
+def clean_text(text):
+    text = re.sub(r'http\S+|www\.\S+', '', text)  # Remove URLs
+    text = re.sub(r'[^a-zA-Z\s]', '', text)  # Remove punctuation
+    text = re.sub(r'\s+', ' ', text).strip()  # Remove extra spaces
+    return text.lower()
+
+# Function to play audio feedback
+def play_audio(text):
+    tts = gTTS(text=text, lang='en')
+    audio_file = "audio.mp3"
+    tts.save(audio_file)
+    with open(audio_file, "rb") as f:
+        st.audio(f.read(), format="audio/mp3")
+
+# Load trained model and vectorizer
+def load_object(filename):
+    try:
+        with open(filename, 'rb') as f:
+            return pickle.load(f)
+    except FileNotFoundError:
+        st.error(f"Error: The file '{filename}' was not found.")
+        return None
+
+# Load the sentiment model and vectorizer
+model = load_object('models/sentiment_model.pkl')
+vectorizer = load_object('models/vectorizer.pkl')
+
+
+
+# Define keywords for trending topics
+topics_keywords = {
+    'Sports': ['football', 'basketball', 'soccer', 'cricket', 'baseball', 'athletics'],
+    'Politics': ['election', 'president', 'government', 'policy', 'democracy', 'congress'],
+    'Education': ['school', 'university', 'education', 'student', 'teacher', 'exam'],
+    'Technology': ['technology', 'ai', 'robotics', 'machine learning', 'coding', 'programming', 'computing'],
+    'Health': ['health', 'medicine', 'doctor', 'patient', 'hospital', 'wellness'],
+}
+
+# Function to classify trending topics
+def classify_topic(text):
+    text = text.lower()
+    topic_count = {topic: 0 for topic in topics_keywords}
+    for topic, keywords in topics_keywords.items():
+        for keyword in keywords:
+            if keyword in text:
+                topic_count[topic] += 1
+    trending_topic = max(topic_count, key=topic_count.get)
+    return trending_topic, topic_count
+
+# Streamlit App Layout
+st.set_page_config(page_title="Enhanced Sentiment Analysis", layout="wide")
+
+# Title and Sidebar
+st.title("📊 Enhanced Sentiment Analysis & Community Insights")
+st.sidebar.title("🔧 App Settings")
+mode = st.sidebar.selectbox("Choose a Theme", ["Light Mode", "Dark Mode"])
+if mode == "Dark Mode":
+    st.markdown('<style>body { background-color: #1e1e1e; color: #f5f5f5; }</style>', unsafe_allow_html=True)
+
+# Real-Time Sentiment Analysis
+st.header("🌟 Real-Time Sentiment Analysis")
+user_input = st.text_area("Enter text to analyze:", placeholder="Type your text here...")
+if st.button("Analyze Sentiment"):
+    if user_input:
+        cleaned_text = clean_text(user_input)
+        try:
+            user_input_vec = vectorizer.transform([cleaned_text])
+            prediction = model.predict(user_input_vec)
+            sentiment = "Positive" if prediction == 1 else "Negative"
+            confidence = model.predict_proba(user_input_vec)[0][int(prediction[0])]
+            st.success(f"Sentiment: {sentiment} (Confidence: {confidence * 100:.2f}%)")
+            play_audio(f"Sentiment detected: {sentiment}. Confidence level: {confidence * 100:.2f} percent.")
+        except Exception as e:
+            st.error(f"Error during analysis: {e}")
+    else:
+        st.error("Please enter some text to analyze.")
+
+# Batch Sentiment Analysis
+st.header("📂 Batch Analysis & Insights")
+batch_input = st.text_area("Enter multiple texts (one per line):")
+if st.button("Batch Analyze"):
+    if batch_input:
+        batch_texts = batch_input.split('\n')
+        results = []
+        for text in batch_texts:
+            cleaned_text = clean_text(text)
+            try:
+                user_input_vec = vectorizer.transform([cleaned_text])
+                prediction = model.predict(user_input_vec)
+                sentiment = "Positive" if prediction == 1 else "Negative"
+                confidence = model.predict_proba(user_input_vec)[0][int(prediction[0])]
+                results.append((text, sentiment, confidence))
+            except Exception:
+                results.append((text, "Error", 0))
+        for text, sentiment, confidence in results:
+            st.write(f"**Text:** {text}")
+            st.write(f"**Sentiment:** {sentiment} (Confidence: {confidence * 100:.2f}%)")
+
+ # Option to download the sentiment report
+   
+
+
+# GNews API for Latest News
+st.header("📰 Latest News Updates")
+query = st.text_input("Search News Topic:")
+api_key = "6fa00c1a9372251a058e7a56a6ebe7d2"
+if st.button("Fetch News"):
+    try:
+        response = requests.get(f"https://gnews.io/api/v4/search?q={query}&token={api_key}")
+        articles = response.json().get("articles", [])
+        if articles:
+            for article in articles:
+                st.subheader(article['title'])
+                st.write(f"Published by: {article['source']['name']} on {article['publishedAt']}")
+                st.write(f"[Read More]({article['url']})")
+                st.write("---")
+        else:
+            st.warning("No news articles found.")
+    except Exception as e:
+        st.error(f"Error fetching news: {e}")
+def create_sentiment_report(predictions):
+    df = pd.DataFrame(predictions)
+    buffer = BytesIO()
+    df.to_csv(buffer, index=False)
+    buffer.seek(0)
+    return buffer
+
+st.download_button(
+    label="Download Sentiment Report (CSV)",
+    data=create_sentiment_report(predictions),
+    file_name="sentiment_report.csv",
+    mime="text/csv"
+)

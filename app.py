@@ -431,3 +431,124 @@ leaderboard = {
 sorted_leaderboard = dict(sorted(leaderboard.items(), key=lambda x: x[1], reverse=True))
 for player, score in sorted_leaderboard.items():
     st.sidebar.write(f"{player}: {score}")
+import streamlit as st
+import speech_recognition as sr
+from textblob import TextBlob
+
+# Title
+st.title("🎤 Speech-to-Text Sentiment Analysis")
+
+# Description
+st.markdown("""
+Welcome to the Speech-to-Text Sentiment Analysis Segment!
+- Click the **Start Recording** button and speak into your microphone.
+- This segment will convert your speech to text and analyze its sentiment.
+""")
+
+# Sidebar Settings
+
+
+# Function to analyze speech sentiment
+def analyze_speech_sentiment():
+    recognizer = sr.Recognizer()
+
+    try:
+        with sr.Microphone() as source:
+            st.info("🎙️ Listening... Speak now!")
+            audio = recognizer.listen(source)
+
+        # Convert speech to text
+        st.info("🔄 Converting speech to text...")
+        text = recognizer.recognize_google(audio)
+
+        # Display recognized text
+        st.success(f"📝 Recognized Text: {text}")
+
+        # Perform sentiment analysis
+        st.info("🔍 Analyzing sentiment...")
+        blob = TextBlob(text)
+        sentiment = blob.sentiment.polarity
+
+        # Display sentiment result
+        if sentiment > 0:
+            st.success("😊 Sentiment: Positive")
+        elif sentiment < 0:
+            st.error("😟 Sentiment: Negative")
+        else:
+            st.warning("😐 Sentiment: Neutral")
+
+    except Exception as e:
+        st.error(f"❌ Error: {str(e)}")
+
+# Button to trigger sentiment analysis
+if st.button("🎤 Start Recording"):
+    analyze_speech_sentiment()
+
+
+import streamlit as st
+import cv2
+from deepface import DeepFace  # Install with `pip install deepface`
+import numpy as np
+
+# Title
+st.title("📸 Real-Time Emotion Detection with Webcam")
+
+# Description
+st.markdown("""
+Welcome to the Real-Time Emotion Detection Segment!
+- Click **Start Emotion Detection** to analyze emotions in real time.
+- This segment uses DeepFace to detect and display the dominant emotion.
+""")
+
+# Sidebar settings
+
+
+# Function to detect emotions using the webcam
+def emotion_detection():
+    st.title("Webcam Emotion Detection")
+
+    start_button = st.button("Start Emotion Detection")
+    stop_button = st.button("Stop Emotion Detection")
+
+    video_placeholder = st.empty()
+
+    if start_button:
+        cap = cv2.VideoCapture(0)
+        if not cap.isOpened():
+            st.error("Error: Unable to access the webcam.")
+            return
+
+        face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
+
+        while not stop_button:
+            ret, frame = cap.read()
+            if not ret:
+                st.error("Error: Unable to read from webcam.")
+                break
+
+            # Detect faces
+            gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+            faces = face_cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5, minSize=(30, 30))
+
+            if len(faces) > 0:
+                # Analyze first face detected
+                x, y, w, h = faces[0]
+                face_roi = frame[y:y+h, x:x+w]
+                try:
+                    analysis = DeepFace.analyze(face_roi, actions=['emotion'], enforce_detection=False)
+                    emotion = analysis[0]['dominant_emotion']
+                except Exception as e:
+                    emotion = "Error in Analysis"
+                    st.error(str(e))
+            else:
+                emotion = "No Face Detected"
+
+            # Display emotion on video frame
+            cv2.putText(frame, f"Emotion: {emotion}", (10, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
+
+            # Display video in Streamlit
+            frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            video_placeholder.image(frame_rgb, caption=f"Emotion: {emotion}", use_container_width=True)
+
+        cap.release()
+emotion_detection()

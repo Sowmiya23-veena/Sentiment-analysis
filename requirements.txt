@@ -3,14 +3,5 @@ scikit-learn
 streamlit
 wordcloud
 gtts
-pickle 
-numpy 
-re 
-collections.Counter 
-sklearn.feature_extraction.text.TfidfVectorizer 
-sklearn.decomposition.LatentDirichletAllocation 
-gtts 
-requests 
-pandas 
-io.BytesIO
-random 
+numpy
+requests
